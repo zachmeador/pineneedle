@@ -1,0 +1,14 @@
+[project]
+name = "pineneedle"
+version = "0.1.0"
+description = "A smart Python application that leverages LLMs to intelligently manage and customize resumes"
+requires-python = ">=3.12"
+
+dependencies = [
+    "click",
+    "markdown", 
+    "openai",
+]
+
+[project.scripts]
+pineneedle = "pineneedle.cli:main" 
