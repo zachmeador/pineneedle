@@ -2,6 +2,8 @@
 
 A smart Python application that leverages Large Language Models (LLMs) to intelligently manage and customize your resume for different job applications.
 
+Alert: This is vibe-coded slop that'll reduce your IQ by at least 30pts. 
+
 ## Overview
 
 Pineneedle transforms resume management from a tedious manual process into an intelligent, automated workflow. By maintaining your professional information in structured markdown files, the app can dynamically generate tailored resumes for specific job opportunities using LLM-powered content curation.
@@ -109,13 +111,7 @@ pineneedle/
 
 ## Future Enhancements
 
-- Web interface for easier content management
-- LinkedIn integration for automatic experience sync
 - ATS (Applicant Tracking System) optimization
 - Cover letter generation
 - Interview preparation based on job requirements
 - Analytics on resume performance
-
----
-
-*Pineneedle: Because your resume should be as sharp as your skills.* 
