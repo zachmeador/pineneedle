@@ -6,8 +6,11 @@ requires-python = ">=3.12"
 
 dependencies = [
     "click",
-    "markdown", 
+    "markdown",
     "openai",
+    "anthropic",
+    "tomli-w",
+    "pydantic-ai[anthropic,openai]>=0.4.5",
 ]
 
 [project.scripts]
