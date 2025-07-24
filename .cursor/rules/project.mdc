@@ -4,3 +4,15 @@ alwaysApply: true
 # pineneedle
 
 Design spec is stored in project root / DESIGN.md. 
+
+## remembering the design
+
+a succinct but complete DESIGN.md in the project root should always be maintained to reflect the app and serve as a starting point for understanding the codebase
+
+## inspiration
+
+guiding thoughts from the authoring user are in THOUGHTS.md
+
+## requirements
+
+- use python uv

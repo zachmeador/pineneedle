@@ -12,7 +12,7 @@ etc.. that's the core problem
 
 - easy to extend and maintain code. lean on a framework if it makes the code simpler. 
     - i think pydantic-ai is a good idea
-- user can supply raw html dumps of a job posting. it's cleaned by the app and stored in a structured way
+- user can supply raw html dumps of a job posting. it's cleaned by the app and stored in a semi-structured way. 
     - job postings are just whatever the user pastes in. the llm receiving it can decipher the important bits.
 - user can "render" a resume for a particular posting, or a general one
 - user can specify a "tone" for a render if they want. say, one with more casual language, more technical, etc. 
@@ -21,7 +21,6 @@ etc.. that's the core problem
 - user can also specify a certain model. and in this case a model includes params like: model provider, model name, temperature
 - user fills in a set of markdown files for things like education, job experience, internships, etc.
     - the user is expected to use something sane in terms of a format but the llm can handle that
-    - later not-required feature: user can also have the app make these additions, in a chat style
 - resumes generated for postings are archived 
     - archive everything: job posting data, generated resume, model settings, prompts used, etc. no reason not to hoard the data.
     - state/storage is well-designed and in human readable formats
@@ -31,6 +30,7 @@ etc.. that's the core problem
 - markdown to pdf rendering. otherwise this isn't fully solving the "no resume to having a shareable resume" pipeline
 - the app will be sync, and not have multiple instances. so, use json for maintaining state for the app. have it live with the user's library of markdowns
 - needs to be easy to use a local llm if the user wants to
+- the resume rendering needs to be based off of a user-modified template library. app contains one simple template for now. 
 
 ## boring stuff
 

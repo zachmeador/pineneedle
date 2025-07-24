@@ -10,8 +10,18 @@ dependencies = [
     "openai",
     "anthropic",
     "tomli-w",
-    "pydantic-ai[anthropic,openai]>=0.4.5",
+    "pydantic-ai>=0.4.5",
+    "python-dotenv",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
 ]
 
 [project.scripts]
-pineneedle = "pineneedle.cli:main" 
+pineneedle = "pineneedle.cli:main"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pineneedle*"] 
