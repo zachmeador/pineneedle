@@ -61,3 +61,5 @@ venv.bak/
 # Project specific
 .data/
 uv.lock
+data/
+dumb_data/

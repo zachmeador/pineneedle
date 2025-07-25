@@ -76,12 +76,30 @@ class ModelConfig(BaseModel):
     temperature: float = 0.7
 
 
-class GenerationRequest(BaseModel):
-    """Parameters for a resume generation request."""
-    job_posting_id: str
-    tone: str | None = None
-    llm_config: ModelConfig | None = None
-    user_feedback: str | None = None
+class ProfileConfig(BaseModel):
+    """Configuration for a specific profile."""
+    # Profile metadata
+    display_name: str
+    description: str = ""
+    created_at: str
+    
+    # Profile-specific model settings (overrides global defaults)
+    preferred_model: ModelConfig | None = None
+    
+    # Profile-specific generation settings
+    default_tone: str | None = None
+    default_template: str = "default"
+    
+    @classmethod
+    def create_default(cls, display_name: str, description: str = "") -> 'ProfileConfig':
+        """Create a default profile configuration."""
+        from datetime import datetime
+        
+        return cls(
+            display_name=display_name,
+            description=description,
+            created_at=datetime.now().isoformat(),
+        )
 
 
 class ResumeContent(BaseModel):
@@ -90,16 +108,22 @@ class ResumeContent(BaseModel):
     summary: str = ""  # Will be extracted for validation
 
 
-class FeedbackResult(BaseModel):
-    """Result of processing user feedback."""
-    revised_prompt: str
-    specific_changes: list[str]
+
+class ProfileInfo(BaseModel):
+    """Information about a user profile."""
+    name: str
+    display_name: str
+    created_at: str
+    description: str = ""
 
 
 class PineneedleConfig(BaseModel):
     """Application configuration."""
     default_model: ModelConfig = ModelConfig()
     workspace_path: Path = Path.cwd()
+    current_profile: str = "default"
+    data_dir: str | None = None  # Custom data directory path
+    profiles: dict[str, ProfileInfo] = {}
     
     class Config:
         arbitrary_types_allowed = True
@@ -108,6 +132,7 @@ class PineneedleConfig(BaseModel):
     def load(cls, config_path: Path | None = None) -> 'PineneedleConfig':
         """Load configuration from file with defaults."""
         import os
+        from datetime import datetime
         
         # Start with defaults, potentially overridden by environment variables
         default_model = ModelConfig(
@@ -125,26 +150,34 @@ class PineneedleConfig(BaseModel):
             else:
                 config_path = Path.cwd() / "data" / "config.json"
         
+        # Default profiles
+        default_profiles = {
+            "default": ProfileInfo(
+                name="default",
+                display_name="Default Profile",
+                created_at=datetime.now().isoformat(),
+                description="Your main profile"
+            )
+        }
+        
         if config_path and config_path.exists():
             import json
             data = json.loads(config_path.read_text())
             # Override with file settings if they exist
             if 'default_model' not in data:
                 data['default_model'] = default_model.model_dump()
+            if 'profiles' not in data:
+                data['profiles'] = {name: info.model_dump() for name, info in default_profiles.items()}
             return cls.model_validate(data)
         
-        return cls(default_model=default_model, workspace_path=Path.cwd())
+        return cls(
+            default_model=default_model, 
+            workspace_path=Path.cwd(),
+            profiles=default_profiles
+        )
 
 
-class ResumeArchive(BaseModel):
-    """Archived resume generation with full metadata."""
-    job_posting_id: str
-    job_posting: JobPosting
-    generation_request: GenerationRequest
-    resume_content: ResumeContent
-    created_at: str
-    model_used: ModelConfig
-    iteration_count: int = 1
+
 
 
 @dataclass

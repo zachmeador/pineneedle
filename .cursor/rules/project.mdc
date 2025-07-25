@@ -9,10 +9,14 @@ Design spec is stored in project root / DESIGN.md.
 
 a succinct but complete DESIGN.md in the project root should always be maintained to reflect the app and serve as a starting point for understanding the codebase
 
+## the user's philosophy
+
+simple maintainable design is key. documentation should be complete but elegantly succinct.
+
 ## inspiration
 
 guiding thoughts from the authoring user are in THOUGHTS.md
 
 ## requirements
 
-- use python uv
+- use python uv and its functions. `uv run` especially.

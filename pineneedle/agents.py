@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from pydantic_ai import Agent, ModelRetry, RunContext
 
 from .models import (
-    FeedbackResult,
     JobPosting,
     JobPostingContent,
     ModelConfig,
@@ -76,16 +75,7 @@ Guidelines:
 
 If user feedback is provided, incorporate those specific changes and improvements."""
 
-FEEDBACK_HANDLER_SYSTEM_PROMPT = """You are an expert at interpreting user feedback on resumes and converting it into specific, actionable revision instructions.
 
-Your task is to:
-1. Analyze the user's feedback carefully
-2. Identify specific areas that need improvement
-3. Generate clear, actionable revision instructions
-4. Create a revised prompt that incorporates the feedback
-
-Focus on understanding the intent behind the feedback and translating it into concrete changes.
-Be specific about what sections to modify, what tone to use, what content to emphasize or de-emphasize."""
 
 
 # Module-level agents - using environment variables for defaults
@@ -177,12 +167,7 @@ async def validate_resume_completeness(ctx: RunContext[ResumeDeps], content: Res
     
     return content
 
-# Feedback processor
-feedback_processor = Agent(
-    get_default_model_string(),
-    output_type=FeedbackResult,
-    system_prompt=FEEDBACK_HANDLER_SYSTEM_PROMPT,
-)
+
 
 
 # Simplified API functions
@@ -240,20 +225,4 @@ async def generate_resume(deps: ResumeDeps, model_config: ModelConfig) -> Resume
     return result.output
 
 
-async def process_feedback(feedback: str, model_config: ModelConfig) -> FeedbackResult:
-    """Process user feedback and generate revision instructions."""
-    # Check API key availability
-    if model_config.provider == "openai" and not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI models.")
-    elif model_config.provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
-        raise ValueError("ANTHROPIC_API_KEY environment variable is required for Anthropic models.")
-    
-    model_str = create_model_string(model_config)
-    
-    result = await feedback_processor.run(
-        f"Process this user feedback on a resume: {feedback}",
-        model=model_str,
-        model_settings={"temperature": model_config.temperature}
-    )
-    
-    return result.output 
+ 
