@@ -314,6 +314,45 @@ class TUIController:
         input("\nPress Enter to continue...")
         self._show_job_actions(posting)
     
+    def _show_parsed_job_summary(self, posting) -> None:
+        """Show a summary of the parsed job posting for user confirmation."""
+        click.echo("\n" + "=" * 60)
+        click.echo("🍃 PARSED JOB POSTING - Please Review")
+        click.echo("=" * 60)
+        click.echo(f"📋 Title: {posting.title}")
+        click.echo(f"🏢 Company: {posting.company}")
+        click.echo(f"📍 Location: {posting.location or 'Not specified'}")
+        
+        if posting.pay:
+            click.echo(f"💰 Pay: {posting.pay}")
+        if posting.industry:
+            click.echo(f"🏭 Industry: {posting.industry}")
+        
+        # Show key requirements (first 5)
+        if posting.requirements:
+            click.echo(f"\n🎯 Key Requirements ({len(posting.requirements)} total):")
+            for req in posting.requirements[:5]:
+                click.echo(f"  • {req}")
+            if len(posting.requirements) > 5:
+                click.echo(f"  ... and {len(posting.requirements) - 5} more")
+        
+        # Show key responsibilities (first 5)
+        if posting.responsibilities:
+            click.echo(f"\n📝 Key Responsibilities ({len(posting.responsibilities)} total):")
+            for resp in posting.responsibilities[:5]:
+                click.echo(f"  • {resp}")
+            if len(posting.responsibilities) > 5:
+                click.echo(f"  ... and {len(posting.responsibilities) - 5} more")
+        
+        # Show keywords if parsed
+        if posting.keywords:
+            keywords_preview = posting.keywords[:8]  # Show first 8 keywords
+            click.echo(f"\n🔑 Keywords: {', '.join(keywords_preview)}")
+            if len(posting.keywords) > 8:
+                click.echo(f"   ... and {len(posting.keywords) - 8} more")
+        
+        click.echo("=" * 60)
+    
     def _delete_job_posting(self, posting) -> None:
         """Delete a job posting."""
         if questionary.confirm(f"Delete job posting '{posting.title}' at {posting.company}? This cannot be undone.").ask():
@@ -344,7 +383,7 @@ class TUIController:
         method = questionary.select(
             "How would you like to add the job posting?",
             choices=[
-                "🍃 Paste content (recommended)",
+                "🍃 Paste content directly (recommended)",
                 "🌳 From file",
                 "🌳 Cancel",
             ]
@@ -355,7 +394,7 @@ class TUIController:
             return
         
         if method.startswith("🍃 Paste"):
-            self.add_job_from_editor()
+            self.add_job_from_paste()
         elif method.startswith("🌳 From file"):
             file_path = questionary.text("File path:").ask()
             if file_path:
@@ -445,33 +484,93 @@ class TUIController:
         
         input("\nPress Enter to continue...")
     
-    def add_job_from_editor(self) -> None:
-        """Add job posting using text editor."""
-        import questionary
+    def add_job_from_paste(self) -> None:
+        """Add job posting using multiline paste input."""
         import asyncio
         from ..agents import parse_job_posting
         
-        # Get content from user
-        content = questionary.text("Paste job posting content (or press Enter to cancel):").ask()
+        # Show helpful instructions
+        click.echo("\n🌲 Paste Job Posting Content")
+        click.echo("=" * 50)
+        click.echo("Instructions:")
+        click.echo("• Paste your job posting text below")
+        click.echo("• You can paste multiple lines at once")
+        click.echo("• Press Enter twice (on empty line) when finished")
+        click.echo("• Type 'cancel' to abort")
+        click.echo("=" * 50)
+        click.echo("\nPaste job posting content:")
         
-        if not content or not content.strip():
+        # Collect multiline input
+        lines = []
+        empty_line_count = 0
+        
+        while True:
+            try:
+                line = input()
+                
+                # Allow user to cancel
+                if line.strip().lower() == 'cancel':
+                    click.echo("Cancelled.")
+                    input("\nPress Enter to continue...")
+                    return
+                
+                # Check for double empty line (end of input)
+                if line.strip() == "":
+                    empty_line_count += 1
+                    if empty_line_count >= 2:
+                        break
+                    lines.append(line)
+                else:
+                    empty_line_count = 0
+                    lines.append(line)
+                    
+            except (EOFError, KeyboardInterrupt):
+                click.echo("\nCancelled.")
+                input("\nPress Enter to continue...")
+                return
+        
+        # Join all lines and clean up
+        content = '\n'.join(lines).strip()
+        
+        if not content:
             click.echo("No content provided")
             input("\nPress Enter to continue...")
             return
         
-        content = content.strip()
-        
         try:
-            click.echo("Parsing job posting...")
+            click.echo("\n🌲 Parsing job posting...")
             posting = asyncio.run(parse_job_posting(content, self.config.default_model))
-            job_id = self.fs.save_job_posting(posting)
+            click.echo("✓ Parsing complete!")
             
-            click.echo(f"🌲 Job posting saved with ID: {job_id}")
-            click.echo(f"Title: {posting.title}")
-            click.echo(f"Company: {posting.company}")
-            click.echo(f"Location: {posting.location or 'Not specified'}")
+            # Show parsed details for confirmation
+            try:
+                self._show_parsed_job_summary(posting)
+            except Exception as summary_error:
+                click.echo(f"🍂 Error displaying summary: {summary_error}")
+                click.echo("Proceeding without summary...")
+            
+            # Ask for confirmation
+            try:
+                confirmed = questionary.confirm("\nDoes this look correct? Save this job posting?", default=True).ask()
+                if confirmed is None:  # User pressed Ctrl+C
+                    click.echo("\n🍂 Cancelled by user")
+                    return
+                elif confirmed:
+                    job_id = self.fs.save_job_posting(posting)
+                    click.echo(f"\n🌲 Job posting saved with ID: {job_id}")
+                    click.echo("✓ Ready to generate resume!")
+                else:
+                    click.echo("\n🍂 Job posting not saved")
+            except Exception as confirm_error:
+                click.echo(f"🍂 Error during confirmation: {confirm_error}")
+                # Fallback - save without confirmation
+                job_id = self.fs.save_job_posting(posting)
+                click.echo(f"\n🌲 Job posting saved with ID: {job_id} (auto-saved due to error)")
+                
         except Exception as e:
-            click.echo(f"Error parsing job posting: {e}")
+            click.echo(f"🍂 Error parsing job posting: {e}")
+            import traceback
+            traceback.print_exc()  # Debug output
         
         input("\nPress Enter to continue...")
     
@@ -494,16 +593,22 @@ class TUIController:
                 input("\nPress Enter to continue...")
                 return
             
-            click.echo("Parsing job posting...")
+            click.echo("🌲 Parsing job posting...")
             posting = asyncio.run(parse_job_posting(content, self.config.default_model))
-            job_id = self.fs.save_job_posting(posting)
             
-            click.echo(f"🌲 Job posting saved with ID: {job_id}")
-            click.echo(f"Title: {posting.title}")
-            click.echo(f"Company: {posting.company}")
-            click.echo(f"Location: {posting.location or 'Not specified'}")
+            # Show parsed details for confirmation
+            self._show_parsed_job_summary(posting)
+            
+            # Ask for confirmation
+            if questionary.confirm("\nDoes this look correct? Save this job posting?", default=True).ask():
+                job_id = self.fs.save_job_posting(posting)
+                click.echo(f"\n🌲 Job posting saved with ID: {job_id}")
+                click.echo("✓ Ready to generate resume!")
+            else:
+                click.echo("\n🍂 Job posting not saved")
+                
         except Exception as e:
-            click.echo(f"Error processing file: {e}")
+            click.echo(f"🍂 Error processing file: {e}")
         
         input("\nPress Enter to continue...")
     

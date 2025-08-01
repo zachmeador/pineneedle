@@ -169,13 +169,9 @@ async def validate_resume_completeness(ctx: RunContext[ResumeDeps], content: Res
 
 
 
-
 # Simplified API functions
 async def parse_job_posting(raw_content: str, model_config: ModelConfig, job_id: str | None = None) -> JobPosting:
     """Parse raw job posting content into structured data."""
-    # Print model specification details
-    print(f"🤖 Parsing job posting using {model_config.provider}:{model_config.model_name} (temperature: {model_config.temperature})")
-    
     # Check API key availability
     if model_config.provider == "openai" and not os.getenv("OPENAI_API_KEY"):
         raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI models.")
