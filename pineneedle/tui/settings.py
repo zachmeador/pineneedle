@@ -2,16 +2,8 @@
 
 import click
 import questionary
-from questionary import Style
 
-
-# Custom style with pine tree cursor
-pine_style = Style([
-    ('pointer', '#00aa00 bold'),  # Green pine tree cursor
-    ('highlighted', '#00aa00 bold'),  # Green highlight for selected item
-    ('answer', '#00aa00 bold'),  # Green for selected answer
-    ('question', 'bold'),
-])
+from .base import pine_style
 
 
 class SettingsManager:
