@@ -94,9 +94,6 @@ class TUIController:
         
         # Build menu options
         choices = []
-        if status['job_count'] > 0:
-            choices.append(f"Generate resume for latest job (\"{postings[0].title}\")")
-        
         choices.extend([
             "Add new job posting",
             "Manage job postings",
@@ -115,9 +112,7 @@ class TUIController:
             sys.exit(0)
         
         # Handle choices
-        if choice.startswith("Generate resume for latest"):
-            self.quick_generate(postings[0].id)
-        elif choice.startswith("Add new"):
+        if choice.startswith("Add new"):
             self.add_job_interactive()
         elif choice.startswith("Manage job"):
             self.manage_jobs_interactive()
