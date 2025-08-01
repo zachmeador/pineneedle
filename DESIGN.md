@@ -41,7 +41,6 @@ class JobPosting(BaseModel):
     requirements: list[str]
     responsibilities: list[str]
     keywords: list[str]
-    tone_reasoning: str
     pay: str | None
     industry: str
     practical_description: str
