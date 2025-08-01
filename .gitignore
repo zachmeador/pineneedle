@@ -20,6 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.DS_Store
 
 # PyInstaller
 *.manifest
@@ -63,3 +64,6 @@ venv.bak/
 uv.lock
 data/
 dumb_data/
+*.pdf
+.claude
+example_postings/
