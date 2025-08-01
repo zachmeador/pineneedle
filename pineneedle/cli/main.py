@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 
 from ..agents import parse_job_posting, generate_resume
 from ..models import ModelConfig, ResumeDeps
-from ..services import FileSystemService
+from ..services import FileSystemService, PDFMetadataService
 from ..pdf import PDFGenerator
+from ..filename_utils import generate_pdf_filename_from_resume
 from .job_commands import add_job_posting_from_editor, add_job_posting_from_file
 
 # Load environment variables
@@ -270,12 +271,26 @@ def export(ctx: click.Context, job_id: str, template: str, output: str | None, v
         click.echo(f"Invalid template '{template}'. Available: {', '.join(available_templates)}")
         return
     
-    # Set output path
-    if output is None:
-        version_suffix = f"_{version}" if version else ""
-        output = f"{job_id}_{template}{version_suffix}.pdf"
+    # Get resume directory and setup metadata tracking
+    resume_dir = fs.fs.get_profile_path("resumes", job_id)
+    fs.fs.ensure_directory(resume_dir)  # Make sure directory exists
+    pdf_metadata = PDFMetadataService(resume_dir)
     
-    output_path = Path(output)
+    # Set output path based on the resume markdown filename
+    if output is None:
+        resume_filename = resume_path.name
+        filename = generate_pdf_filename_from_resume(resume_filename, template)
+        output_path = resume_dir / filename
+        
+        # Check if PDF already exists
+        existing_pdf = pdf_metadata.get_pdf_path(resume_filename, template)
+        if existing_pdf and existing_pdf.exists():
+            click.echo(f"PDF already exists: {existing_pdf}")
+            if not click.confirm("Do you want to regenerate it?", default=False):
+                click.echo(f"✓ Using existing PDF: {existing_pdf}")
+                return
+    else:
+        output_path = Path(output)
     
     try:
         # Read resume content
@@ -284,6 +299,10 @@ def export(ctx: click.Context, job_id: str, template: str, output: str | None, v
         # Generate PDF
         click.echo(f"Generating PDF with '{template}' template...")
         pdf_path = pdf_gen.generate(resume_content, output_path, template)
+        
+        # Record PDF generation in metadata (if using default naming)
+        if output is None:
+            pdf_metadata.record_pdf_generation(resume_filename, template, pdf_path)
         
         click.echo(f"✓ PDF exported to: {pdf_path}")
         click.echo(f"File size: {pdf_path.stat().st_size:,} bytes")

@@ -460,9 +460,37 @@ class TUIController:
             self.main_menu()
             return
         
-        # Export to PDF
-        output = f"{job_id}_{template}.pdf"
-        self._export_resume_to_pdf(job_id, template, output)
+        # Export to PDF with filename matching resume markdown
+        resume_path = self.fs.get_resume_version(job_id)
+        if not resume_path or not resume_path.exists():
+            click.echo(f"No resume found for job ID: {job_id}")
+            input("\nPress Enter to continue...")
+            self.main_menu()
+            return
+            
+        # Get resume directory and setup metadata tracking
+        from ..filename_utils import generate_pdf_filename_from_resume
+        from ..services import PDFMetadataService
+        resume_dir = self.fs.fs.get_profile_path("resumes", job_id)
+        self.fs.fs.ensure_directory(resume_dir)  # Make sure directory exists
+        pdf_metadata = PDFMetadataService(resume_dir)
+        
+        # Generate filename based on resume markdown name
+        resume_filename = resume_path.name
+        filename = generate_pdf_filename_from_resume(resume_filename, template)
+        output_path = resume_dir / filename
+        
+        # Check if PDF already exists
+        existing_pdf = pdf_metadata.get_pdf_path(resume_filename, template)
+        if existing_pdf and existing_pdf.exists():
+            click.echo(f"PDF already exists: {existing_pdf}")
+            if not questionary.confirm("Do you want to regenerate it?", default=False).ask():
+                click.echo(f"✓ Using existing PDF: {existing_pdf}")
+                input("\nPress Enter to continue...")
+                self.main_menu()
+                return
+        
+        self._export_resume_to_pdf(job_id, template, str(output_path), pdf_metadata, resume_filename)
         
         input("\nPress Enter to continue...")
         self.main_menu()
@@ -616,7 +644,7 @@ class TUIController:
     
 
     
-    def _export_resume_to_pdf(self, job_id: str, template: str, output: str) -> None:
+    def _export_resume_to_pdf(self, job_id: str, template: str, output: str, pdf_metadata=None, resume_filename: str = None) -> None:
         """Export a resume to PDF."""
         from pathlib import Path
         from ..pdf import PDFGenerator
@@ -646,6 +674,10 @@ class TUIController:
             # Generate PDF
             click.echo(f"Generating PDF with '{template}' template...")
             pdf_path = pdf_gen.generate(resume_content, output_path, template)
+            
+            # Record PDF generation in metadata if provided
+            if pdf_metadata and resume_filename:
+                pdf_metadata.record_pdf_generation(resume_filename, template, pdf_path)
             
             click.echo(f"🌲 PDF exported to: {pdf_path}")
             click.echo(f"File size: {pdf_path.stat().st_size:,} bytes")

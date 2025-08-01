@@ -108,6 +108,20 @@ class ResumeContent(BaseModel):
     summary: str = ""  # Will be extracted for validation
 
 
+class PDFGenerationRecord(BaseModel):
+    """Record of a single PDF generation."""
+    resume_file: str
+    template: str
+    pdf_file: str
+    generated_at: str
+    file_size: int
+
+
+class PDFMetadata(BaseModel):
+    """Collection of PDF generation records for a job posting."""
+    records: dict[str, PDFGenerationRecord] = {}
+
+
 
 class ProfileInfo(BaseModel):
     """Information about a user profile."""

@@ -9,6 +9,8 @@ from .file_operations import FileOperations
 from .filename_utils import generate_job_posting_filename, generate_resume_filename, parse_timestamp_from_resume_filename
 from .models import (
     JobPosting,
+    PDFGenerationRecord,
+    PDFMetadata,
     PineneedleConfig,
     ProfileConfig,
     ProfileInfo,
@@ -377,6 +379,70 @@ class FileSystemService:
         version_path = resume_dir / filename
         
         return version_path if version_path.exists() else None
+
+
+class PDFMetadataService:
+    """Handles PDF metadata file operations."""
+    
+    def __init__(self, resume_dir_path: Path):
+        self.resume_dir = resume_dir_path
+        self.metadata_file = resume_dir_path / "pdf_metadata.json"
+    
+    def load_metadata(self) -> PDFMetadata:
+        """Load PDF metadata from JSON file."""
+        if self.metadata_file.exists():
+            try:
+                import json
+                data = json.loads(self.metadata_file.read_text())
+                return PDFMetadata.model_validate(data)
+            except (json.JSONDecodeError, FileNotFoundError):
+                return PDFMetadata()
+        return PDFMetadata()
+    
+    def save_metadata(self, metadata: PDFMetadata) -> None:
+        """Save PDF metadata to JSON file."""
+        self.resume_dir.mkdir(parents=True, exist_ok=True)
+        self.metadata_file.write_text(metadata.model_dump_json(indent=2))
+    
+    def is_pdf_generated(self, resume_filename: str, template: str) -> bool:
+        """Check if PDF was already generated for this resume and template."""
+        metadata = self.load_metadata()
+        key = f"{resume_filename}_{template}"
+        return key in metadata.records
+    
+    def get_pdf_path(self, resume_filename: str, template: str) -> Path | None:
+        """Get path to existing PDF if it exists."""
+        if self.is_pdf_generated(resume_filename, template):
+            from .filename_utils import generate_pdf_filename_from_resume
+            pdf_filename = generate_pdf_filename_from_resume(resume_filename, template)
+            pdf_path = self.resume_dir / pdf_filename
+            if pdf_path.exists():
+                return pdf_path
+        return None
+    
+    def record_pdf_generation(self, resume_filename: str, template: str, pdf_path: Path) -> None:
+        """Record that a PDF was generated."""
+        from datetime import datetime
+        from .filename_utils import generate_pdf_filename_from_resume
+        
+        metadata = self.load_metadata()
+        key = f"{resume_filename}_{template}"
+        
+        record = PDFGenerationRecord(
+            resume_file=resume_filename,
+            template=template,
+            pdf_file=pdf_path.name,
+            generated_at=datetime.now().isoformat(),
+            file_size=pdf_path.stat().st_size if pdf_path.exists() else 0
+        )
+        
+        metadata.records[key] = record
+        self.save_metadata(metadata)
+    
+    def list_generated_pdfs(self) -> list[PDFGenerationRecord]:
+        """List all generated PDFs with their metadata."""
+        metadata = self.load_metadata()
+        return list(metadata.records.values())
     
     def initialize_workspace(self, workspace_path: Path, config: Any, output_callback=None) -> None:
         """Initialize the pineneedle workspace with example data and configuration.

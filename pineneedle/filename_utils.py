@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from pathlib import Path
 
 from .models import JobPosting
 
@@ -36,6 +37,21 @@ def generate_resume_filename(timestamp: datetime | None = None) -> str:
     return f"{timestamp_str}_resume.md"
 
 
+def generate_pdf_filename_from_resume(resume_filename: str, template: str) -> str:
+    """Generate PDF filename matching the source resume markdown file.
+    
+    Args:
+        resume_filename: Source resume filename like "2024-12-15_14-30-00_resume.md"
+        template: PDF template name like "professional" or "modern"
+    
+    Returns:
+        PDF filename like "2024-12-15_14-30-00_resume_professional.pdf"
+    """
+    # Remove .md extension and append template
+    base_name = resume_filename.replace(".md", "")
+    return f"{base_name}_{template}.pdf"
+
+
 def parse_timestamp_from_resume_filename(filename: str) -> str:
     """Extract timestamp from resume filename."""
-    return filename.replace("_resume.md", "") 
+    return filename.replace("_resume.md", "")
