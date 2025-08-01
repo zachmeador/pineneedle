@@ -23,7 +23,6 @@ class JobPostingContent(BaseModel):
     requirements: list[str]
     responsibilities: list[str]
     keywords: list[str]
-    tone_reasoning: str  # Clinical analysis of language patterns and communication style
     pay: str | None  # Salary information (range or single figure)
     industry: str  # Approximation of what industry this role is in
     practical_description: str  # What the job would actually entail in practice, not HR speak
@@ -38,7 +37,6 @@ class JobPosting(BaseModel):
     requirements: list[str]
     responsibilities: list[str]
     keywords: list[str]
-    tone_reasoning: str
     pay: str | None
     industry: str  # Approximation of what industry this role is in
     practical_description: str  # What the job would actually entail in practice, not HR speak
@@ -58,7 +56,6 @@ class JobPosting(BaseModel):
             requirements=content.requirements,
             responsibilities=content.responsibilities,
             keywords=content.keywords,
-            tone_reasoning=content.tone_reasoning,
             pay=content.pay,
             industry=content.industry,
             practical_description=content.practical_description,

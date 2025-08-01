@@ -2,8 +2,18 @@
 
 import click
 import questionary
+from questionary import Style
 
 from ..profile_service import ProfileService
+
+
+# Custom style with pine tree cursor
+pine_style = Style([
+    ('pointer', '#00aa00 bold'),  # Green pine tree cursor
+    ('highlighted', '#00aa00 bold'),  # Green highlight for selected item
+    ('answer', '#00aa00 bold'),  # Green for selected answer
+    ('question', 'bold'),
+])
 
 
 class ProfileManagerTUI:
@@ -12,13 +22,14 @@ class ProfileManagerTUI:
     def __init__(self, fs, config):
         self.profile_service = ProfileService(fs, config)
     
+    
     def interactive_manager(self) -> None:
         """Interactive profile management interface."""
         while True:
             profiles = self.profile_service.list_profiles()
             current_profile = self.profile_service.get_current_profile()
             
-            click.echo("\n🌳 Profile Management")
+            click.echo("\nProfile Management")
             click.echo(f"Current profile: {current_profile.display_name}")
             
             # Show available profiles
@@ -31,21 +42,22 @@ class ProfileManagerTUI:
             action = questionary.select(
                 "What would you like to do?",
                 choices=[
-                    "🌱 Switch profile",
-                    "🌱 New profile",
-                    "🍂 Delete profile",
-                    "🌳 Back to main menu",
-                ]
+                    "Switch profile",
+                    "New profile",
+                    "Delete profile",
+                ],
+                style=pine_style,
+                pointer="🌲"
             ).ask()
             
-            if not action or action.startswith("🌳"):
+            if not action:  # User pressed ESC
                 break
             
-            if action.startswith("🌱 Switch"):
+            if action.startswith("Switch"):
                 self._switch_profile_ui(profiles, current_profile)
-            elif action.startswith("🌱 New"):
+            elif action.startswith("New"):
                 self._create_profile_ui()
-            elif action.startswith("🍂 Delete"):
+            elif action.startswith("Delete"):
                 self._delete_profile_ui(profiles)
     
     def _switch_profile_ui(self, profiles, current_profile) -> None:
@@ -56,21 +68,22 @@ class ProfileManagerTUI:
             return
             
         choices = [p.display_name for p in other_profiles]
-        choices.append("🌳 Cancel")
         
         choice = questionary.select(
             "Switch to profile:",
-            choices=choices
+            choices=choices,
+            style=pine_style,
+            pointer="🌲"
         ).ask()
         
-        if choice and not choice.startswith("🌳"):
+        if choice:
             # Find the profile by display name
             for profile in other_profiles:
                 if profile.display_name == choice:
                     if self.profile_service.switch_profile(profile.name):
-                        click.echo(f"🌲 Switched to profile: {profile.display_name}")
+                        click.echo(f"Switched to profile: {profile.display_name}")
                     else:
-                        click.echo("🍂 Failed to switch profile")
+                        click.echo("Failed to switch profile")
                     break
     
     def _create_profile_ui(self) -> None:
@@ -84,9 +97,9 @@ class ProfileManagerTUI:
         description = questionary.text("Description (optional):").ask()
         
         if self.profile_service.create_profile(name, display_name or name.title(), description or ""):
-            click.echo(f"🌲 Created profile: {display_name or name.title()}")
+            click.echo(f"Created profile: {display_name or name.title()}")
         else:
-            click.echo("🍂 Failed to create profile (name may already exist)")
+            click.echo("Failed to create profile (name may already exist)")
     
     def _delete_profile_ui(self, profiles) -> None:
         """UI for profile deletion."""
@@ -96,14 +109,15 @@ class ProfileManagerTUI:
             return
         
         choices = [p.display_name for p in deletable_profiles]
-        choices.append("🌳 Cancel")
         
         choice = questionary.select(
             "Delete which profile?",
-            choices=choices
+            choices=choices,
+            style=pine_style,
+            pointer="🌲"
         ).ask()
         
-        if choice and not choice.startswith("🌳"):
+        if choice:
             # Find the profile by display name
             for profile in deletable_profiles:
                 if profile.display_name == choice:
@@ -117,10 +131,10 @@ class ProfileManagerTUI:
                     if questionary.confirm(confirm_msg).ask():
                         if self.profile_service.delete_profile(profile.name):
                             if is_current:
-                                click.echo(f"🌲 Deleted profile: {profile.display_name}")
-                                click.echo("🌲 Switched to Default Profile")
+                                click.echo(f"Deleted profile: {profile.display_name}")
+                                click.echo("Switched to Default Profile")
                             else:
-                                click.echo(f"🌲 Deleted profile: {profile.display_name}")
+                                click.echo(f"Deleted profile: {profile.display_name}")
                         else:
-                            click.echo("🍂 Failed to delete profile")
+                            click.echo("Failed to delete profile")
                     break 

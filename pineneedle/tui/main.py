@@ -5,9 +5,47 @@ import sys
 
 import click
 import questionary
+from questionary import Style
 
 from ..agents import generate_resume
 from ..models import ResumeDeps
+
+
+# Custom style with pine tree cursor
+pine_style = Style([
+    ('pointer', '#00aa00 bold'),  # Green pine tree cursor
+    ('highlighted', '#00aa00 bold'),  # Green highlight for selected item
+    ('answer', '#00aa00 bold'),  # Green for selected answer
+    ('question', 'bold'),
+])
+
+# Navigation constants
+BACK_SIGNAL = '__PINENEEDLE_BACK__'
+
+def select_with_back(prompt, choices, default=None, show_back=True):
+    """Helper function for questionary select with back navigation."""
+    # Add "← Back" option to choices if requested and not at root level
+    enhanced_choices = choices.copy() if show_back else choices
+    if show_back:
+        enhanced_choices.append("← Back")
+    
+    try:
+        choice = questionary.select(
+            prompt,
+            choices=enhanced_choices,
+            style=pine_style,
+            pointer="🌲",
+            default=default
+        ).ask()
+        
+        # Handle back selection
+        if choice == "← Back":
+            return BACK_SIGNAL
+        
+        return choice
+        
+    except KeyboardInterrupt:
+        return BACK_SIGNAL
 
 
 def start_tui(fs, config):
@@ -22,6 +60,7 @@ class TUIController:
     def __init__(self, fs, config):
         self.fs = fs
         self.config = config
+    
     
     def main_menu(self) -> None:
         """Main interactive interface."""
@@ -50,70 +89,63 @@ class TUIController:
             if status['resume_count'] > 0:
                 click.echo(f"• {status['resume_count']} resume(s) generated")
             if not status['has_background']:
-                click.echo("🌲 No background information found - add your details in the background files")
+                click.echo("No background information found - add your details in the background files")
             click.echo()
         
         # Build menu options
         choices = []
         if status['job_count'] > 0:
-            choices.append(f"🌲 Generate resume for latest job (\"{postings[0].title}\")")
+            choices.append(f"Generate resume for latest job (\"{postings[0].title}\")")
         
         choices.extend([
-            "🌱 Add new job posting",
-            "🌳 Manage job postings",
-            "🍃 Manage resumes",
-            "🌿 Export resume to PDF",
-            "🌳 Manage profiles",
-            "🌲 Settings",
-            "🌿 Help",
-            "🍂 Quit",
+            "Add new job posting",
+            "Manage job postings",
+            "Manage resumes",
+            "Export resume to PDF",
+            "Manage profiles",
+            "Settings",
+            "Help",
         ])
         
-        # Show menu
-        choice = questionary.select(
-            "What would you like to do?",
-            choices=choices,
-        ).ask()
+        # Show menu (no back option at root level)
+        choice = select_with_back("What would you like to do?", choices, show_back=False)
         
-        if not choice:  # User pressed Ctrl+C
-            click.echo("Goodbye! 🍂")
+        if not choice or choice == BACK_SIGNAL:  # User pressed ESC or back - quit at root level
+            click.echo("\nGoodbye!")
             sys.exit(0)
         
         # Handle choices
-        if choice.startswith("🌲 Generate resume for latest"):
+        if choice.startswith("Generate resume for latest"):
             self.quick_generate(postings[0].id)
-        elif choice.startswith("🌱 Add new"):
+        elif choice.startswith("Add new"):
             self.add_job_interactive()
-        elif choice.startswith("🌳 Manage job"):
+        elif choice.startswith("Manage job"):
             self.manage_jobs_interactive()
-        elif choice.startswith("🍃 Manage resumes"):
+        elif choice.startswith("Manage resumes"):
             self.show_saved_resumes()
             self.main_menu()
-        elif choice.startswith("🌿 Export resume"):
+        elif choice.startswith("Export resume"):
             self.export_interactive()
-        elif choice.startswith("🌳 Manage profiles"):
+        elif choice.startswith("Manage profiles"):
             from .profile import ProfileManagerTUI
             ProfileManagerTUI(self.fs, self.config).interactive_manager()
             self.main_menu()
-        elif choice.startswith("🌲 Settings"):
+        elif choice.startswith("Settings"):
             from .settings import SettingsManager
             SettingsManager(self.fs, self.config).interactive_manager()
             self.main_menu()
-        elif choice.startswith("🌿 Help"):
+        elif choice.startswith("Help"):
             click.echo("\nPineneedle Help")
             click.echo("=" * 50)
             click.echo("Use 'pineneedle --help' for command-line usage")
             click.echo("This interactive mode guides you through common tasks")
             input("\nPress Enter to continue...")
             self.main_menu()
-        elif choice.startswith("🍂 Quit"):
-            click.echo("Goodbye! 🍂")
-            sys.exit(0)
     
     def _show_uninitialized_interface(self) -> None:
         """Show interface for uninitialized workspace."""
-        click.echo("🌲 Pineneedle - AI Resume Generator")
-        click.echo("\n🌲 Workspace not initialized")
+        click.echo("Pineneedle - AI Resume Generator")
+        click.echo("\nWorkspace not initialized")
         click.echo("Let's set up your workspace first!")
         
         if questionary.confirm("Initialize workspace now?", default=True).ask():
@@ -127,7 +159,7 @@ class TUIController:
         """Quick resume generation flow."""
         try:
             job_posting = self.fs.load_job_posting(job_id)
-            click.echo(f"🌲 Generating resume for: {job_posting.title} at {job_posting.company}")
+            click.echo(f"Generating resume for: {job_posting.title} at {job_posting.company}")
             
             # Load dependencies
             user_background = self.fs.load_user_background()
@@ -142,34 +174,33 @@ class TUIController:
             )
             
             # Generate resume
-            click.echo("🌲 Analyzing job requirements...")
+            click.echo("Generating resume...")
             resume_content = asyncio.run(generate_resume(deps, self.config.default_model))
             
             # Save resume
             resume_path = self.fs.save_resume(job_posting.id, resume_content)
             
-            click.echo(f"🌲 Resume generated and saved!")
+            click.echo(f"Resume generated and saved!")
             
             # Show options
-            next_action = questionary.select(
+            next_action = select_with_back(
                 "What's next?",
                 choices=[
-                    "👀 Preview resume",
-                    "🌿 Export to PDF", 
-                    "🌳 Back to main menu",
+                    "Preview resume",
+                    "Export to PDF", 
                 ]
-            ).ask()
+            )
             
-            if not next_action:
+            if not next_action or next_action == BACK_SIGNAL:  # User pressed ESC or back
                 self.main_menu()
                 return
             
-            if next_action.startswith("🍃 Preview"):
+            if next_action.startswith("Preview"):
                 click.echo("\n" + "=" * 50)
                 click.echo(resume_content.resume_markdown)
                 click.echo("=" * 50)
                 input("\nPress Enter to continue...")
-            elif next_action.startswith("🌿 Export"):
+            elif next_action.startswith("Export"):
                 self.export_interactive(job_id)
             
             # Return to main menu
@@ -194,14 +225,13 @@ class TUIController:
         choices = []
         for posting in postings[:10]:  # Show max 10
             choices.append(f"{posting.title} at {posting.company}")
-        choices.append("🌳 Back to main menu")
         
-        choice = questionary.select(
+        choice = select_with_back(
             "Select a job posting to generate resume for:",
-            choices=choices
-        ).ask()
+            choices
+        )
         
-        if not choice or choice.startswith("🌳"):
+        if not choice or choice == BACK_SIGNAL:  # User pressed ESC or back
             self.main_menu()
             return
         
@@ -225,14 +255,13 @@ class TUIController:
         choices = []
         for posting in postings[:10]:  # Show max 10
             choices.append(f"{posting.title} at {posting.company}")
-        choices.append("🌳 Back to main menu")
         
-        choice = questionary.select(
+        choice = select_with_back(
             "Select a job posting to manage:",
-            choices=choices
-        ).ask()
+            choices
+        )
         
-        if not choice or choice.startswith("🌳"):
+        if not choice or choice == BACK_SIGNAL:  # User pressed ESC or back
             self.main_menu()
             return
         
@@ -248,27 +277,26 @@ class TUIController:
     
     def _show_job_actions(self, posting) -> None:
         """Show available actions for a selected job posting."""
-        click.echo(f"\n🍃 {posting.title} at {posting.company}")
+        click.echo(f"\n{posting.title} at {posting.company}")
         
-        action = questionary.select(
+        action = select_with_back(
             "What would you like to do?",
             choices=[
-                "🍃 View details",
-                "🌲 Generate resume",
-                "🍂 Delete posting",
-                "🌳 Back to job list",
+                "View details",
+                "Generate resume",
+                "Delete posting",
             ]
-        ).ask()
+        )
         
-        if not action or action.startswith("🌳"):
+        if not action or action == BACK_SIGNAL:  # User pressed ESC or back
             self.manage_jobs_interactive()
             return
         
-        if action.startswith("🍃 View"):
+        if action.startswith("View"):
             self._show_job_details(posting)
-        elif action.startswith("🌲 Generate"):
+        elif action.startswith("Generate"):
             self.quick_generate(posting.id)
-        elif action.startswith("🍂 Delete"):
+        elif action.startswith("Delete"):
             self._delete_job_posting(posting)
     
     def _show_job_details(self, posting) -> None:
@@ -303,9 +331,6 @@ class TUIController:
             click.echo(f"\nWhat you'd actually be doing:")
             click.echo(f"  {posting.practical_description}")
         
-        if posting.tone_reasoning:
-            click.echo(f"\nCommunication style analysis:")
-            click.echo(f"  {posting.tone_reasoning}")
         
         # Show model info for debugging
         if hasattr(posting, 'model_provider') and posting.model_provider != "unknown":
@@ -317,20 +342,20 @@ class TUIController:
     def _show_parsed_job_summary(self, posting) -> None:
         """Show a summary of the parsed job posting for user confirmation."""
         click.echo("\n" + "=" * 60)
-        click.echo("🍃 PARSED JOB POSTING - Please Review")
+        click.echo("PARSED JOB POSTING - Please Review")
         click.echo("=" * 60)
-        click.echo(f"📋 Title: {posting.title}")
-        click.echo(f"🏢 Company: {posting.company}")
-        click.echo(f"📍 Location: {posting.location or 'Not specified'}")
+        click.echo(f"Title: {posting.title}")
+        click.echo(f"Company: {posting.company}")
+        click.echo(f"Location: {posting.location or 'Not specified'}")
         
         if posting.pay:
-            click.echo(f"💰 Pay: {posting.pay}")
+            click.echo(f"Pay: {posting.pay}")
         if posting.industry:
-            click.echo(f"🏭 Industry: {posting.industry}")
+            click.echo(f"Industry: {posting.industry}")
         
         # Show key requirements (first 5)
         if posting.requirements:
-            click.echo(f"\n🎯 Key Requirements ({len(posting.requirements)} total):")
+            click.echo(f"\nKey Requirements ({len(posting.requirements)} total):")
             for req in posting.requirements[:5]:
                 click.echo(f"  • {req}")
             if len(posting.requirements) > 5:
@@ -338,7 +363,7 @@ class TUIController:
         
         # Show key responsibilities (first 5)
         if posting.responsibilities:
-            click.echo(f"\n📝 Key Responsibilities ({len(posting.responsibilities)} total):")
+            click.echo(f"\nKey Responsibilities ({len(posting.responsibilities)} total):")
             for resp in posting.responsibilities[:5]:
                 click.echo(f"  • {resp}")
             if len(posting.responsibilities) > 5:
@@ -347,7 +372,7 @@ class TUIController:
         # Show keywords if parsed
         if posting.keywords:
             keywords_preview = posting.keywords[:8]  # Show first 8 keywords
-            click.echo(f"\n🔑 Keywords: {', '.join(keywords_preview)}")
+            click.echo(f"\nKeywords: {', '.join(keywords_preview)}")
             if len(posting.keywords) > 8:
                 click.echo(f"   ... and {len(posting.keywords) - 8} more")
         
@@ -363,39 +388,38 @@ class TUIController:
             # Find and delete the posting file
             for file_path in job_postings_path.glob(f"{posting.id}_*.json"):
                 os.remove(file_path)
-                click.echo(f"🌲 Deleted job posting: {posting.title}")
+                click.echo(f"Deleted job posting: {posting.title}")
                 break
             else:
                 # Fallback: try exact match
                 exact_path = job_postings_path / f"{posting.id}.json"
                 if exact_path.exists():
                     os.remove(exact_path)
-                    click.echo(f"🌲 Deleted job posting: {posting.title}")
+                    click.echo(f"Deleted job posting: {posting.title}")
                 else:
-                    click.echo("🍂 Failed to delete job posting")
+                    click.echo("Failed to delete job posting")
         
         self.manage_jobs_interactive()
     
     def add_job_interactive(self) -> None:
         """Interactive job posting addition."""
-        click.echo("🍃 Add New Job Posting")
+        click.echo("Add New Job Posting")
         
-        method = questionary.select(
+        method = select_with_back(
             "How would you like to add the job posting?",
             choices=[
-                "🍃 Paste content directly (recommended)",
-                "🌳 From file",
-                "🌳 Cancel",
+                "Paste content directly (recommended)",
+                "From file",
             ]
-        ).ask()
+        )
         
-        if not method or method.startswith("🌳"):
+        if not method or method == BACK_SIGNAL:  # User pressed ESC or back
             self.main_menu()
             return
         
-        if method.startswith("🍃 Paste"):
+        if method.startswith("Paste"):
             self.add_job_from_paste()
-        elif method.startswith("🌳 From file"):
+        elif method.startswith("From file"):
             file_path = questionary.text("File path:").ask()
             if file_path:
                 self.add_job_from_file(file_path)
@@ -428,14 +452,13 @@ class TUIController:
             choices = []
             for posting in postings_with_resumes:
                 choices.append(f"{posting.title} at {posting.company}")
-            choices.append("🌳 Back to main menu")
             
-            choice = questionary.select(
+            choice = select_with_back(
                 "Select resume to export:",
-                choices=choices
-            ).ask()
+                choices
+            )
             
-            if not choice or choice.startswith("🌳"):
+            if not choice or choice == BACK_SIGNAL:  # User pressed ESC or back
                 self.main_menu()
                 return
             
@@ -450,13 +473,13 @@ class TUIController:
         pdf_gen = PDFGenerator()
         templates = pdf_gen.get_available_templates()
         
-        template = questionary.select(
+        template = select_with_back(
             "Choose PDF template:",
-            choices=templates,
+            templates,
             default="professional"
-        ).ask()
+        )
         
-        if not template:
+        if not template or template == BACK_SIGNAL:
             self.main_menu()
             return
         
@@ -498,13 +521,11 @@ class TUIController:
     def initialize_workspace(self) -> None:
         """Initialize the pineneedle workspace."""
         click.echo(f"Initializing Pineneedle workspace in {self.fs.workspace_path}")
-        click.echo(f"Using data directory: {self.fs.data_path}")
         
         # Use shared initialization logic
         self.fs.initialize_workspace(self.fs.workspace_path, self.config, click.echo)
         
-        click.echo("\n🌲 Workspace initialized successfully!")
-        click.echo(f"\nData directory: {self.fs.data_path}")
+        click.echo("\nWorkspace initialized successfully!")
         click.echo(f"Profile: {self.fs.current_profile}")
         click.echo("\nNext steps:")
         click.echo("1. Edit files in data/profiles/{}/background/ with your information".format(self.fs.current_profile))
@@ -518,7 +539,7 @@ class TUIController:
         from ..agents import parse_job_posting
         
         # Show helpful instructions
-        click.echo("\n🌲 Paste Job Posting Content")
+        click.echo("\nPaste Job Posting Content")
         click.echo("=" * 50)
         click.echo("Instructions:")
         click.echo("• Paste your job posting text below")
@@ -566,7 +587,7 @@ class TUIController:
             return
         
         try:
-            click.echo("\n🌲 Parsing job posting...")
+            click.echo("\nParsing job posting...")
             posting = asyncio.run(parse_job_posting(content, self.config.default_model))
             click.echo("✓ Parsing complete!")
             
@@ -574,29 +595,29 @@ class TUIController:
             try:
                 self._show_parsed_job_summary(posting)
             except Exception as summary_error:
-                click.echo(f"🍂 Error displaying summary: {summary_error}")
+                click.echo(f"Error displaying summary: {summary_error}")
                 click.echo("Proceeding without summary...")
             
             # Ask for confirmation
             try:
                 confirmed = questionary.confirm("\nDoes this look correct? Save this job posting?", default=True).ask()
                 if confirmed is None:  # User pressed Ctrl+C
-                    click.echo("\n🍂 Cancelled by user")
+                    click.echo("\nCancelled by user")
                     return
                 elif confirmed:
                     job_id = self.fs.save_job_posting(posting)
-                    click.echo(f"\n🌲 Job posting saved with ID: {job_id}")
+                    click.echo(f"\nJob posting saved with ID: {job_id}")
                     click.echo("✓ Ready to generate resume!")
                 else:
-                    click.echo("\n🍂 Job posting not saved")
+                    click.echo("\nJob posting not saved")
             except Exception as confirm_error:
-                click.echo(f"🍂 Error during confirmation: {confirm_error}")
+                click.echo(f"Error during confirmation: {confirm_error}")
                 # Fallback - save without confirmation
                 job_id = self.fs.save_job_posting(posting)
-                click.echo(f"\n🌲 Job posting saved with ID: {job_id} (auto-saved due to error)")
+                click.echo(f"\nJob posting saved with ID: {job_id} (auto-saved due to error)")
                 
         except Exception as e:
-            click.echo(f"🍂 Error parsing job posting: {e}")
+            click.echo(f"Error parsing job posting: {e}")
             import traceback
             traceback.print_exc()  # Debug output
         
@@ -621,7 +642,7 @@ class TUIController:
                 input("\nPress Enter to continue...")
                 return
             
-            click.echo("🌲 Parsing job posting...")
+            click.echo("Parsing job posting...")
             posting = asyncio.run(parse_job_posting(content, self.config.default_model))
             
             # Show parsed details for confirmation
@@ -630,13 +651,13 @@ class TUIController:
             # Ask for confirmation
             if questionary.confirm("\nDoes this look correct? Save this job posting?", default=True).ask():
                 job_id = self.fs.save_job_posting(posting)
-                click.echo(f"\n🌲 Job posting saved with ID: {job_id}")
+                click.echo(f"\nJob posting saved with ID: {job_id}")
                 click.echo("✓ Ready to generate resume!")
             else:
-                click.echo("\n🍂 Job posting not saved")
+                click.echo("\nJob posting not saved")
                 
         except Exception as e:
-            click.echo(f"🍂 Error processing file: {e}")
+            click.echo(f"Error processing file: {e}")
         
         input("\nPress Enter to continue...")
     
@@ -679,7 +700,7 @@ class TUIController:
             if pdf_metadata and resume_filename:
                 pdf_metadata.record_pdf_generation(resume_filename, template, pdf_path)
             
-            click.echo(f"🌲 PDF exported to: {pdf_path}")
+            click.echo(f"PDF exported to: {pdf_path}")
             click.echo(f"File size: {pdf_path.stat().st_size:,} bytes")
             
         except Exception as e:
@@ -700,7 +721,7 @@ class TUIController:
             input("\nPress Enter to continue...")
             return
         
-        click.echo(f"\n🍃 Saved Resumes")
+        click.echo(f"\nSaved Resumes")
         click.echo(f"Found resumes for {len(resume_dirs)} job(s):\n")
         
         for resume_dir in resume_dirs:

@@ -1,9 +1,17 @@
 """Settings management TUI for Pineneedle."""
 
-from pathlib import Path
-
 import click
 import questionary
+from questionary import Style
+
+
+# Custom style with pine tree cursor
+pine_style = Style([
+    ('pointer', '#00aa00 bold'),  # Green pine tree cursor
+    ('highlighted', '#00aa00 bold'),  # Green highlight for selected item
+    ('answer', '#00aa00 bold'),  # Green for selected answer
+    ('question', 'bold'),
+])
 
 
 class SettingsManager:
@@ -13,11 +21,11 @@ class SettingsManager:
         self.fs = fs
         self.config = config
     
+    
     def interactive_manager(self) -> None:
         """Interactive settings management interface."""
         while True:
-            click.echo("\n🌲 Settings")
-            click.echo(f"Data directory: {self.fs.data_path}")
+            click.echo("\nSettings")
             click.echo(f"Current profile: {self.config.current_profile}")
             click.echo(f"Default model: {self.config.default_model.provider}:{self.config.default_model.model_name}")
             click.echo(f"Temperature: {self.config.default_model.temperature}")
@@ -25,18 +33,19 @@ class SettingsManager:
             action = questionary.select(
                 "What would you like to change?",
                 choices=[
-                    "🌲 Default model",
-                    "🌿 Model temperature",
-                    "🌳 Back to main menu",
-                ]
+                    "Default model",
+                    "Model temperature",
+                ],
+                style=pine_style,
+                pointer="🌲"
             ).ask()
             
-            if not action or action.startswith("🌳"):
+            if not action:  # User pressed ESC
                 break
             
-            if action.startswith("🌲 Default"):
+            if action.startswith("Default"):
                 self._change_default_model()
-            elif action.startswith("🌿 Model"):
+            elif action.startswith("Model"):
                 self._change_temperature()
     
     def _change_default_model(self) -> None:
@@ -44,7 +53,9 @@ class SettingsManager:
         provider = questionary.select(
             "Choose provider:",
             choices=["openai", "anthropic"],
-            default=self.config.default_model.provider
+            default=self.config.default_model.provider,
+            style=pine_style,
+            pointer="🌲"
         ).ask()
         
         if provider:
@@ -58,14 +69,16 @@ class SettingsManager:
             model_name = questionary.select(
                 "Choose model:",
                 choices=models,
-                default=self.config.default_model.model_name if self.config.default_model.model_name in models else models[0]
+                default=self.config.default_model.model_name if self.config.default_model.model_name in models else models[0],
+                style=pine_style,
+                pointer="🌲"
             ).ask()
             
             if model_name:
                 self.config.default_model.provider = provider
                 self.config.default_model.model_name = model_name
                 self.fs.save_config(self.config)
-                click.echo("🌲 Default model updated")
+                click.echo("Default model updated")
     
     def _change_temperature(self) -> None:
         """Handle temperature changes."""
@@ -78,4 +91,4 @@ class SettingsManager:
         if temp:
             self.config.default_model.temperature = float(temp)
             self.fs.save_config(self.config)
-            click.echo("🌲 Temperature updated") 
+            click.echo("Temperature updated") 

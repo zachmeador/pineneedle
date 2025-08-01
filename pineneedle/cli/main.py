@@ -44,12 +44,6 @@ def cli(ctx: click.Context, workspace: str, profile: str | None) -> None:
         config.current_profile = current_profile
         ctx.obj['fs'].save_config(config)
     
-    # Show data directory location for user awareness
-    data_dir_env = os.getenv("PINENEEDLE_DATA_DIR")
-    if data_dir_env:
-        ctx.obj['data_info'] = f"Using data directory from PINENEEDLE_DATA_DIR: {ctx.obj['fs'].data_path}"
-    else:
-        ctx.obj['data_info'] = f"Using default data directory: {ctx.obj['fs'].data_path}"
     
     # If no subcommand was invoked, start TUI
     if ctx.invoked_subcommand is None:
@@ -66,13 +60,11 @@ def init(ctx: click.Context) -> None:
     config = ctx.obj['config']
     
     click.echo(f"Initializing Pineneedle workspace in {workspace_path}")
-    click.echo(ctx.obj['data_info'])
     
     # Use shared initialization logic
     fs.initialize_workspace(workspace_path, config, click.echo)
     
     click.echo("\n🎉 Workspace initialized successfully!")
-    click.echo(f"\nData directory: {fs.data_path}")
     click.echo(f"Profile: {fs.current_profile}")
     click.echo("\nNext steps:")
     click.echo("1. Edit files in data/profiles/{}/background/ with your information".format(fs.current_profile))

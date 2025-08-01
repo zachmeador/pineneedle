@@ -39,10 +39,9 @@ Your task is to analyze the raw job posting content and extract:
 3. **Comprehensive requirements** - Extract ALL requirements including technical skills, experience, education, certifications
 4. **Detailed responsibilities** - Preserve technical depth and specificity
 5. **Comprehensive keywords** - Extract technical and business terms
-6. **Tone reasoning** - Analyze language patterns objectively (2-3 sentences)
-7. **Pay information** - Extract salary/compensation details or null
-8. **Industry** - Determine the specific industry/sector this role is in. Be as specific as possible rather than using broad categories. Examples: "Financial Technology (FinTech)", "Enterprise Software", "Healthcare IT", "E-commerce", "Cloud Infrastructure", "Cybersecurity", "Management Consulting", "Investment Banking", "Pharmaceuticals", "Medical Devices", "Automotive Manufacturing", "Renewable Energy", "Real Estate Technology", "Educational Technology", etc.
-9. **Practical description** - Provide an honest breakdown of how someone in this role would actually spend their time, rank-ordered by cumulative percentage of time spent. AVOID ALL corporate buzzwords, MBA-speak, and HR jargon. Be specific about the actual activities IN THAT SPECIFIC INDUSTRY. Tailor the activities to the industry context. Examples:
+6. **Pay information** - Extract salary/compensation details or null
+7. **Industry** - Determine the specific industry/sector this role is in. Be as specific as possible rather than using broad categories. Examples: "Financial Technology (FinTech)", "Enterprise Software", "Healthcare IT", "E-commerce", "Cloud Infrastructure", "Cybersecurity", "Management Consulting", "Investment Banking", "Pharmaceuticals", "Medical Devices", "Automotive Manufacturing", "Renewable Energy", "Real Estate Technology", "Educational Technology", etc.
+8. **Practical description** - Provide an honest breakdown of how someone in this role would actually spend their time, rank-ordered by cumulative percentage of time spent. AVOID ALL corporate buzzwords, MBA-speak, and HR jargon. Be specific about the actual activities IN THAT SPECIFIC INDUSTRY. Tailor the activities to the industry context. Examples:
    - For agribusiness data scientist: "30% - Cleaning sensor data from farms (soil, weather, irrigation), 25% - Building crop yield prediction models, 20% - Creating reports for farmers and agronomists, 15% - Field visits to validate predictions, 10% - Meetings with agricultural engineers"
    - For fintech software dev: "45% - Writing code for payment processing systems, 25% - Debugging transaction failures and security issues, 15% - Regulatory compliance meetings and documentation, 10% - Code reviews focused on financial accuracy, 5% - Learning about banking regulations"
    - For healthcare consulting: "35% - Building Excel models of patient flow and costs, 30% - Meetings with hospital administrators, 20% - Analyzing clinical data and outcomes, 10% - Creating PowerPoints for C-suite presentations, 5% - Site visits to medical facilities"
@@ -99,10 +98,6 @@ async def load_user_background(ctx: RunContext[ResumeDeps]) -> UserBackground:
     """Load user background information from markdown files."""
     return ctx.deps.user_background
 
-@resume_generator.tool
-async def load_template(ctx: RunContext[ResumeDeps]) -> str:
-    """Load the resume template."""
-    return ctx.deps.template
 
 @resume_generator.tool
 async def get_job_requirements(ctx: RunContext[ResumeDeps]) -> dict[str, Any]:
@@ -114,7 +109,6 @@ async def get_job_requirements(ctx: RunContext[ResumeDeps]) -> dict[str, Any]:
         "requirements": job.requirements,
         "responsibilities": job.responsibilities,
         "keywords": job.keywords,
-        "tone_reasoning": job.tone_reasoning,
         "pay": job.pay,
         "industry": job.industry,
         "practical_description": job.practical_description,
@@ -126,12 +120,7 @@ async def get_tone_guidance(ctx: RunContext[ResumeDeps]) -> str:
     if ctx.deps.tone:
         return f"Use a {ctx.deps.tone} tone throughout the resume."
     
-    # Use tone reasoning from job posting analysis
-    tone_reasoning = ctx.deps.job_posting.tone_reasoning
-    if not tone_reasoning:
-        return "Use a professional, standard tone."
-    
-    return f"Tone guidance from job analysis: {tone_reasoning}"
+    return "Use a professional, standard tone."
 
 @resume_generator.tool
 async def get_feedback_context(ctx: RunContext[ResumeDeps]) -> str:
