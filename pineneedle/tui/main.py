@@ -28,12 +28,7 @@ class TUIController:
     
     def main_menu(self) -> None:
         """Main interactive interface."""
-        # Check if initialized
-        if not self.fs.is_initialized():
-            self._show_uninitialized_interface()
-            return
-        
-        # Get status
+        # Get status (initialization is now automatic)
         status = self.fs.get_profile_status()
         
         # Show welcome with context
@@ -104,31 +99,3 @@ class TUIController:
             input("\nPress Enter to continue...")
             self.main_menu()
     
-    def _show_uninitialized_interface(self) -> None:
-        """Show interface for uninitialized workspace."""
-        click.echo("Pineneedle - AI Resume Generator")
-        click.echo("\nWorkspace not initialized")
-        click.echo("Let's set up your workspace first!")
-        
-        import questionary
-        if questionary.confirm("Initialize workspace now?", default=True).ask():
-            self.initialize_workspace()
-            self.main_menu()
-        else:
-            click.echo("Run 'pineneedle init' when you're ready to set up.")
-            sys.exit(0)
-    
-    def initialize_workspace(self) -> None:
-        """Initialize the pineneedle workspace."""
-        click.echo(f"Initializing Pineneedle workspace in {self.fs.workspace_path}")
-        
-        # Use shared initialization logic
-        self.fs.initialize_workspace(self.fs.workspace_path, self.config, click.echo)
-        
-        click.echo("\nWorkspace initialized successfully!")
-        click.echo(f"Profile: {self.fs.current_profile}")
-        click.echo("\nNext steps:")
-        click.echo("1. Edit files in data/profiles/{}/background/ with your information".format(self.fs.current_profile))
-        click.echo("2. Use this interface to add job postings and generate resumes")
-        
-        input("\nPress Enter to continue...")

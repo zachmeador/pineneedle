@@ -62,7 +62,7 @@ def init(ctx: click.Context) -> None:
     click.echo(f"Initializing Pineneedle workspace in {workspace_path}")
     
     # Use shared initialization logic
-    fs.initialize_workspace(workspace_path, config, click.echo)
+    fs.initialize_workspace(config, click.echo)
     
     click.echo("\n🎉 Workspace initialized successfully!")
     click.echo(f"Profile: {fs.current_profile}")

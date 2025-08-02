@@ -31,6 +31,12 @@ class FileSystemService:
         self.profile_path = self.fs.profile_path
         
         self._ensure_workspace_structure()
+        
+        # Auto-initialize if not already initialized
+        if not self.is_initialized():
+            from .models import PineneedleConfig
+            config = PineneedleConfig.load()  # This creates default config if none exists
+            self.initialize_workspace(config, output_callback=lambda x: None)  # Silent initialization
     
     def _ensure_workspace_structure(self) -> None:
         """Create necessary directories if they don't exist."""
@@ -397,6 +403,40 @@ class FileSystemService:
         versions.sort(key=lambda x: x[0], reverse=True)
         return versions
     
+    def initialize_workspace(self, config: Any, output_callback=None) -> None:
+        """Initialize the pineneedle workspace with example data and configuration.
+        
+        Args:
+            config: Application configuration object
+            output_callback: Optional function to call for output messages (defaults to print)
+        """
+        if output_callback is None:
+            output_callback = print
+        
+        # Directory structure is already created by constructor
+        output_callback("✓ Created directory structure")
+        
+        # Copy example data to background if it doesn't exist
+        background_path = self.profile_path / "background"
+        example_data_path = self.workspace_path / "example_data"
+        
+        if example_data_path.exists():
+            for file_name in ["contact.md", "education.md", "experience.md", "reference.md"]:
+                example_file = example_data_path / file_name
+                background_file = background_path / file_name
+                
+                if example_file.exists() and not background_file.exists():
+                    background_file.write_text(example_file.read_text())
+                    output_callback(f"✓ Copied {file_name} to background/")
+        
+        # Create default template with schema
+        template = self.load_template("default")
+        output_callback("✓ Created default resume template and schema")
+        
+        # Save default config
+        self.save_config(config)
+        output_callback("✓ Created configuration file")
+    
     def get_latest_resume_path(self, job_id: str) -> Path | None:
         """Get the path to the latest resume file for a job posting."""
         versions = self.list_resume_versions(job_id)
@@ -481,40 +521,6 @@ class PDFMetadataService:
         metadata = self.load_metadata()
         return list(metadata.records.values())
     
-    def initialize_workspace(self, workspace_path: Path, config: Any, output_callback=None) -> None:
-        """Initialize the pineneedle workspace with example data and configuration.
-        
-        Args:
-            workspace_path: Path to the workspace directory
-            config: Application configuration object
-            output_callback: Optional function to call for output messages (defaults to print)
-        """
-        if output_callback is None:
-            output_callback = print
-        
-        # Directory structure is already created by constructor
-        output_callback("✓ Created directory structure")
-        
-        # Copy example data to background if it doesn't exist
-        background_path = self.profile_path / "background"
-        example_data_path = workspace_path / "example_data"
-        
-        if example_data_path.exists():
-            for file_name in ["contact.md", "education.md", "experience.md", "reference.md"]:
-                example_file = example_data_path / file_name
-                background_file = background_path / file_name
-                
-                if example_file.exists() and not background_file.exists():
-                    background_file.write_text(example_file.read_text())
-                    output_callback(f"✓ Copied {file_name} to background/")
-        
-        # Create default template with schema
-        template = self.load_template("default")
-        output_callback("✓ Created default resume template and schema")
-        
-        # Save default config
-        self.save_config(config)
-        output_callback("✓ Created configuration file")
 
 
 
