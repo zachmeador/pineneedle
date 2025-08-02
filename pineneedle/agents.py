@@ -82,6 +82,7 @@ job_parser_agent = Agent(
     get_default_model_string(),
     output_type=JobPostingContent,
     system_prompt=JOB_PARSER_SYSTEM_PROMPT,
+    retries=3
 )
 
 # Resume generator with deps and tools
@@ -90,6 +91,7 @@ resume_generator = Agent(
     deps_type=ResumeDeps,
     output_type=ResumeContent,
     system_prompt=RESUME_GENERATOR_SYSTEM_PROMPT,
+    retries=3
 )
 
 # Tools for resume generator
