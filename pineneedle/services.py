@@ -214,18 +214,41 @@ class FileSystemService:
         """Read file content or return empty string if file doesn't exist."""
         return self.fs.read_text_safe(path)
     
-    def load_template(self, template_name: str = "default") -> str:
-        """Load resume template."""
+    def load_template(self, template_name: str = "default"):
+        """Load complete template with schema."""
+        from .models import Template, TemplateSchema
+        import yaml
+        
+        # Load template content
         template_path = self.fs.get_profile_path("templates", f"{template_name}.md")
+        schema_path = self.fs.get_profile_path("templates", f"{template_name}.yaml")
         
         content = self.fs.read_text_safe(template_path)
         if not content:
-            # Create default template if it doesn't exist
-            default_template = self._get_default_template()
-            self.fs.write_text(template_path, default_template)
-            return default_template
+            # Create default template and schema if they don't exist
+            content = self._get_default_template()
+            self.fs.write_text(template_path, content)
             
-        return content
+            default_schema = self._get_default_template_schema()
+            self.fs.write_text(schema_path, yaml.dump(default_schema, default_flow_style=False))
+        
+        # Load schema
+        schema_content = self.fs.read_text_safe(schema_path)
+        if not schema_content:
+            # Create default schema if it doesn't exist
+            default_schema = self._get_default_template_schema()
+            self.fs.write_text(schema_path, yaml.dump(default_schema, default_flow_style=False))
+            schema_data = default_schema
+        else:
+            schema_data = yaml.safe_load(schema_content)
+        
+        schema = TemplateSchema.model_validate(schema_data)
+        
+        return Template(
+            name=template_name,
+            content=content,
+            template_schema=schema
+        )
     
     def _get_default_template(self) -> str:
         """Return the default resume template."""
@@ -245,6 +268,51 @@ class FileSystemService:
 {skills}
 """
     
+    def _get_default_template_schema(self) -> dict:
+        """Return the default template schema."""
+        return {
+            "name": "default",
+            "description": "Standard resume template with essential sections",
+            "sections": [
+                {
+                    "name": "summary",
+                    "display_name": "Summary",
+                    "required": True,
+                    "format": "## Summary",
+                    "min_length": 20,
+                    "description": "Professional summary highlighting key qualifications and experience"
+                },
+                {
+                    "name": "experience",
+                    "display_name": "Experience", 
+                    "required": True,
+                    "format": "## Experience",
+                    "min_length": 50,
+                    "description": "Work experience and professional achievements"
+                },
+                {
+                    "name": "education",
+                    "display_name": "Education",
+                    "required": True,
+                    "format": "## Education", 
+                    "min_length": 20,
+                    "description": "Educational background and qualifications"
+                },
+                {
+                    "name": "skills",
+                    "display_name": "Skills",
+                    "required": False,
+                    "format": "## Skills",
+                    "min_length": 10,
+                    "description": "Technical and professional skills relevant to the role"
+                }
+            ],
+            "placeholders": {
+                "name": "Full name from contact information",
+                "contact_info": "Contact details (email, phone, location)"
+            }
+        }
+    
     def save_job_posting(self, posting: JobPosting) -> str:
         """Save job posting and return its ID."""
         filename = generate_job_posting_filename(posting)
@@ -257,12 +325,6 @@ class FileSystemService:
     def load_job_posting(self, job_id: str) -> JobPosting:
         """Load job posting by ID."""
         job_postings_path = self.fs.get_profile_path("job_postings")
-        
-        # First try exact filename match (backwards compatibility)
-        exact_path = job_postings_path / f"{job_id}.json"
-        data = self.fs.read_json(exact_path)
-        if data:
-            return JobPosting.model_validate(data)
         
         # Search for files that start with the job_id
         matching_files = list(job_postings_path.glob(f"{job_id}_*.json"))
@@ -288,31 +350,6 @@ class FileSystemService:
                 if not data:
                     continue
                 posting = JobPosting.model_validate(data)
-                
-                # Set created_at from filename if missing (backwards compatibility)
-                if not hasattr(posting, 'created_at') or not posting.created_at:
-                    # Try to extract timestamp from filename (new format: numericid_company_role_location)
-                    filename_parts = posting_file.stem.split('_')
-                    if len(filename_parts) >= 1 and filename_parts[0].isdigit():
-                        try:
-                            # New format: YYYYMMDDHHMMSS
-                            if len(filename_parts[0]) == 14:
-                                timestamp_str = filename_parts[0]
-                                parsed_dt = datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
-                                posting.created_at = parsed_dt.isoformat()
-                            # Old format: YYYYMMDD_HHMMSS
-                            elif len(filename_parts) >= 2 and filename_parts[0].isdigit() and filename_parts[1].isdigit():
-                                timestamp_str = f"{filename_parts[0]}_{filename_parts[1]}"
-                                parsed_dt = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                                posting.created_at = parsed_dt.isoformat()
-                            else:
-                                posting.created_at = datetime.fromtimestamp(posting_file.stat().st_mtime).isoformat()
-                        except ValueError:
-                            posting.created_at = datetime.fromtimestamp(posting_file.stat().st_mtime).isoformat()
-                    else:
-                        # Fallback to file modification time
-                        posting.created_at = datetime.fromtimestamp(posting_file.stat().st_mtime).isoformat()
-                
                 postings.append(posting)
             except Exception:
                 continue  # Skip corrupted files
@@ -471,9 +508,9 @@ class PDFMetadataService:
                     background_file.write_text(example_file.read_text())
                     output_callback(f"✓ Copied {file_name} to background/")
         
-        # Create default template
-        template_content = self.load_template("default")
-        output_callback("✓ Created default resume template")
+        # Create default template with schema
+        template = self.load_template("default")
+        output_callback("✓ Created default resume template and schema")
         
         # Save default config
         self.save_config(config)

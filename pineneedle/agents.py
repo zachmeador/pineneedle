@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+import logfire
 from dotenv import load_dotenv
 from pydantic_ai import Agent, ModelRetry, RunContext
 
@@ -18,6 +19,16 @@ from .models import (
 
 # Load environment variables at module import
 load_dotenv()
+
+# Configure logfire for local file logging only
+from pathlib import Path
+logs_dir = Path("logs")
+logs_dir.mkdir(exist_ok=True)
+logfire.configure(
+    send_to_logfire=False,
+    console=False
+)
+logfire.instrument_pydantic_ai()
 
 def create_model_string(config: ModelConfig) -> str:
     """Create model string for pydantic-ai from config."""
@@ -57,12 +68,19 @@ Guidelines:
 RESUME_GENERATOR_SYSTEM_PROMPT = """You are an expert resume writer who creates tailored resumes for specific job postings.
 
 Your task is to generate a professional resume that:
-1. Follows the provided template structure exactly
+1. Follows the template structure exactly as defined in the template schema
 2. Tailors content specifically to the job posting requirements
 3. Uses the user's background information effectively
 4. Matches the tone and style appropriate for the role
 5. Emphasizes relevant skills and experiences
 6. Uses strong action verbs and quantifiable achievements where possible
+
+CRITICAL INSTRUCTIONS:
+- Use the get_template_structure tool to understand the exact template format and requirements
+- Each required section must be present with the specified format (e.g., "## Summary", "## Experience")
+- Ensure each section meets the minimum length requirements defined in the schema
+- Follow the placeholder structure exactly as shown in the template content
+- Optional sections should only be included if relevant and beneficial
 
 Guidelines:
 - Extract and emphasize skills that match the job requirements
@@ -131,31 +149,119 @@ async def get_feedback_context(ctx: RunContext[ResumeDeps]) -> str:
         return f"User feedback to incorporate: {ctx.deps.user_feedback}"
     return "No specific feedback provided - create the best possible resume."
 
+@resume_generator.tool
+async def get_template_structure(ctx: RunContext[ResumeDeps]) -> dict[str, Any]:
+    """Get the template structure, sections, and validation requirements."""
+    template = ctx.deps.template
+    return {
+        "template_name": template.name,
+        "template_content": template.content,
+        "required_sections": [
+            {
+                "name": section.name,
+                "display_name": section.display_name,
+                "format": section.format,
+                "description": section.description,
+                "min_length": section.min_length,
+                "max_length": section.max_length
+            }
+            for section in template.template_schema.get_required_sections()
+        ],
+        "optional_sections": [
+            {
+                "name": section.name,
+                "display_name": section.display_name,
+                "format": section.format,
+                "description": section.description,
+                "min_length": section.min_length,
+                "max_length": section.max_length
+            }
+            for section in template.template_schema.get_optional_sections()
+        ],
+        "placeholders": template.template_schema.placeholders,
+        "instructions": f"Generate resume content that exactly matches the template structure. Each required section must be present with the specified format. Template content: {template.content}"
+    }
+
 @resume_generator.output_validator
 async def validate_resume_completeness(ctx: RunContext[ResumeDeps], content: ResumeContent) -> ResumeContent:
-    """Validate that the generated resume is complete and follows the template."""
+    """Validate that the generated resume follows the template schema requirements."""
+    logfire.info("Starting schema-driven resume validation", resume_length=len(content.resume_markdown))
+    
+    template = ctx.deps.template
+    schema = template.template_schema
+    
     if len(content.resume_markdown.strip()) < 100:
+        logfire.warning("Resume too short", length=len(content.resume_markdown.strip()))
         raise ModelRetry("Resume is too short, please provide more detailed content")
     
-    # Extract summary for validation (basic check)
+    # Extract sections based on schema
     lines = content.resume_markdown.split('\n')
-    summary_started = False
-    summary_lines = []
+    extracted_sections = {}
+    current_section = None
+    current_content = []
     
     for line in lines:
-        if line.strip().lower().startswith('## summary'):
-            summary_started = True
-            continue
-        elif line.strip().startswith('##') and summary_started:
-            break
-        elif summary_started and line.strip():
-            summary_lines.append(line.strip())
+        line_stripped = line.strip()
+        
+        # Check if this line starts a new section
+        section_found = None
+        for section in schema.sections:
+            # Try different format variations for flexibility
+            expected_formats = [
+                section.format,
+                f"#{section.format[1:]}",  # Convert ## to #
+                f"##{section.display_name}",
+                f"# {section.display_name}"
+            ]
+            
+            for fmt in expected_formats:
+                if line_stripped.lower() == fmt.lower():
+                    section_found = section.name
+                    logfire.info("Found section", section=section.name, line=line_stripped)
+                    break
+            if section_found:
+                break
+        
+        if section_found:
+            # Save previous section if exists
+            if current_section and current_content:
+                extracted_sections[current_section] = '\n'.join(current_content).strip()
+            
+            current_section = section_found
+            current_content = []
+        elif current_section and line_stripped:
+            current_content.append(line_stripped)
     
-    content.summary = ' '.join(summary_lines)
+    # Save last section
+    if current_section and current_content:
+        extracted_sections[current_section] = '\n'.join(current_content).strip()
     
-    if len(content.summary) < 30:
-        raise ModelRetry("Summary section is too brief, please provide more detail about the candidate")
+    logfire.info("Extracted sections", sections=list(extracted_sections.keys()))
     
+    # Validate required sections
+    missing_sections = []
+    for section in schema.get_required_sections():
+        if section.name not in extracted_sections:
+            missing_sections.append(section.display_name)
+        else:
+            content_text = extracted_sections[section.name]
+            if len(content_text) < section.min_length:
+                logfire.warning("Section too short", 
+                    section=section.name, 
+                    length=len(content_text), 
+                    min_required=section.min_length,
+                    content=content_text[:100]
+                )
+                raise ModelRetry(f"Section '{section.display_name}' is too brief (minimum {section.min_length} characters). Please provide more detailed content for this section.")
+    
+    if missing_sections:
+        logfire.warning("Missing required sections", missing=missing_sections)
+        raise ModelRetry(f"Missing required sections: {', '.join(missing_sections)}. Please include all required sections with the correct format.")
+    
+    # Store extracted sections in content object
+    content.sections = extracted_sections
+    
+    logfire.info("Resume validation passed", sections_found=len(extracted_sections))
     return content
 
 

@@ -67,3 +67,7 @@ dumb_data/
 *.pdf
 .claude
 example_postings/
+
+# Logs
+logs/
+*.log
